@@ -7,3 +7,4 @@ To run the model on a different dataset, you'll need to create input files that 
 
 Although the model is fully-functional and ready for scientific application, it is still under development, and there are multiple avenues by which it could be improved, both conceptually, and in terms of the technical implementation. Please feel from to fork, or get in touch if you're interested in collaboration.
 
+[![DOI](https://zenodo.org/badge/136086485.svg)](https://zenodo.org/badge/latestdoi/136086485)
