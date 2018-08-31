@@ -1,5 +1,5 @@
 load("output0106.Rdata")
-
+library(here)
 #trim the rows of all NAs
 good= which(!apply(is.na(compMat),1,all))
 compMat=compMat[good,]
@@ -72,7 +72,7 @@ for(c in 1:5){
   
   if(c < 5){
     #load in and prepare original counts and uncertainty
-    countUncertainty = na.omit(read.csv(paste0("~/Dropbox/VarveModel/Eklutna/Input1219/replicateCounting",corenames[c],".csv"),header = FALSE,strip.white = T)[,1:3])
+    countUncertainty = na.omit(read.csv(here("Eklutna","Input0106",paste0("replicateCounting",corenames[c],".csv")),header = FALSE,strip.white = T)[,1:3])
     
 
     unc.hi = matrix(nrow = length(orig.thick))
@@ -373,18 +373,19 @@ for(ML in 1:length(allMarkerLayers)){
 
 
 #Tephra plots
-tephdata = read.csv("~/Dropbox/VarveModel/Eklutna/Input0628/TephraDeoths.csv")[1:5,-1]
-ageData =vector(mode = "list",length = 5)
+tephfile = readr::read_csv(here("Eklutna","Input0106","TephraDepths.csv"))
+tephdata <- tephfile[,-1]
+ageData =vector(mode = "list",length = nrow(tephdata))
 
-for(c in 1:5){
-  ageData[[c]] =vector(mode = "list",length = 5)
+for(c in 1:nCores){
+  ageData[[c]] =vector(mode = "list",length = nCores)
   
-  for(t in 1:5){
+  for(t in 1:length(ageData)){
     ageData[[c]][[t]] = NA
     if(!is.na(tephdata[t,c])){
       adjDepth = tephdata[t,c]*10
       if(adjDepth < nrow(ageModels[[c]]$ageEnsemble)){
-    ageData[[c]][[t]] = as.vector(ageModels[[c]]$ageEnsemble[round(adjDepth),])
+    ageData[[c]][[t]] = as.vector(ageModels[[c]]$ageEnsemble[as.numeric(round(adjDepth)),])
       }
     }
   }
@@ -392,7 +393,7 @@ for(c in 1:5){
 }
 #names(ageData) = corenames
 core.names = colnames(tephdata)
-tephra.names = c("5","7","8","10","12")
+tephra.names = tephfile$`Tephra ID/ Core ID`
 
 # meltedAges = melt(ageData,na.rm = TRUE)
 # 
@@ -404,7 +405,7 @@ tephPlotHollow =list()
 tephPlot= list()
 tephPlotStack =list()
 
-for(t in 1:5){
+for(t in 1:nrow(tephfile)){
   rm("tdf")
   for(c in 1:5){
     
@@ -461,13 +462,102 @@ for(t in 1:5){
 library(gridExtra)
 
 tephraOut = grid.arrange(grobs = tephPlot,ncol = 1)
-ggsave(plot = tephraOut,filename = "EklutnaFigures/TephraPlot.pdf",width = 5,height = 11, units = "in")
+ggsave(plot = tephraOut,filename = here("EklutnaFigures","TephraPlot.pdf"),width = 5,height = 11, units = "in")
 
 
 tephraOutHollow = grid.arrange(grobs = tephPlotHollow,ncol = 1)
-ggsave(plot = tephraOutHollow,filename = "EklutnaFigures/TephraPlot-hollow.pdf",width = 5,height = 11, units = "in")
+ggsave(plot = tephraOutHollow,filename = here("EklutnaFigures","TephraPlot-hollow.pdf"),width = 5,height = 11, units = "in")
 
 
 tephraOutStack = grid.arrange(grobs = tephPlotStack,ncol = 1)
-ggsave(plot = tephraOutStack,filename = "EklutnaFigures/TephraPlot-Stack.pdf",width = 5,height = 11, units = "in")
+ggsave(plot = tephraOutStack,filename = here("EklutnaFigures","TephraPlot-Stack.pdf"),width = 5,height = 11, units = "in")
+
+
+#Nore's events
+
+#Tephra plots
+tephfile = readr::read_csv(here("Eklutna","Input0106","eventsNore.csv"))
+tephdata <- tephfile[,-1]/10
+ageData =vector(mode = "list",length = nrow(tephdata))
+
+for(c in 1:nCores){
+  ageData[[c]] =vector(mode = "list",length = nCores)
+  
+  for(t in 1:length(ageData)){
+    ageData[[c]][[t]] = NA
+    if(!is.na(tephdata[t,c])){
+      adjDepth = tephdata[t,c]*10
+      if(adjDepth < nrow(ageModels[[c]]$ageEnsemble)){
+        ageData[[c]][[t]] = as.vector(ageModels[[c]]$ageEnsemble[as.numeric(round(adjDepth)),])
+      }
+    }
+  }
+  
+}
+#names(ageData) = corenames
+core.names = colnames(tephdata)
+tephra.names = tephfile$`EVENT NAME`
+
+
+tephPlotHollow =list()
+tephPlot= list()
+tephPlotStack =list()
+
+for(t in 1:nrow(tephfile)){
+  rm("tdf")
+  for(c in 1:5){
+    
+    if(!all(is.na(ageData[[c]][[t]]))){
+      if(exists("tdf")){
+        tdf = rbind(tdf,data.frame(age = ageData[[c]][[t]],Core = core.names[c]))
+      }else{
+        tdf = data.frame(age = ageData[[c]][[t]],Core = core.names[c])
+        
+      }
+    }
+    
+  }
+  if(!exists("tdf")){
+   #no data
+    next
+  }
+  tephPlotHollow[[t]]=ggplot(tdf)+
+    geom_density(aes(x = age,colour = Core),alpha = 0.5)+
+    #geom_freqpoly(aes(x = age,fill = Core))+
+    theme_bw()+
+    theme(panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank())+
+    scale_colour_brewer(palette = "Set1")+
+    scale_y_continuous(expand = c(0,0))+
+    ggtitle(paste("Tephra",tephra.names[t]))+
+    xlab("Age (yr BP)")+
+    ylab("Probability Density")
+  ggsave( tephPlotHollow[[t]],filename = here("EklutnaFigures","EventHistograms",paste0(tephra.names[t],"-histHollow.pdf")))
+  
+  tephPlot[[t]]=ggplot(tdf)+
+    geom_density(aes(x = age,fill = Core),colour = "black",alpha = 0.3)+
+    theme_bw()+
+    theme(panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank())+
+    scale_fill_brewer(palette = "Set1")+
+    scale_y_continuous(expand = c(0,0))+
+    ggtitle(paste("Event",tephra.names[t]))+
+    xlab("Age (yr BP)")+
+    ylab("Probability Density")
+  ggsave( tephPlot[[t]],filename = here("EklutnaFigures","EventHistograms",paste0(tephra.names[t],"-hist.pdf")))
+  
+  tephPlotStack[[t]]=ggplot(tdf)+
+    geom_density(aes(x = age,fill = Core),colour = "black",alpha = 1,position = "stack")+
+    theme_bw()+
+    theme(panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank())+
+    scale_fill_brewer(palette = "Accent")+
+    scale_y_continuous(expand = c(0,0))+
+    ggtitle(paste("Tephra",tephra.names[t]))+
+    xlab("Age (yr BP)")+
+    ylab("Probability Density")
+  ggsave( tephPlotStack[[t]],filename = here("EklutnaFigures","EventHistograms",paste0(tephra.names[t],"-histStack.pdf")))
+  
+  
+}
 
