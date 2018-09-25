@@ -1,5 +1,6 @@
 load("output0106.Rdata")
 library(here)
+library(tidyverse)
 #trim the rows of all NAs
 good= which(!apply(is.na(compMat),1,all))
 compMat=compMat[good,]
@@ -24,6 +25,13 @@ lines(c025)
 ageModels = vector(mode="list",length=5)
 origCores = cores
 Depth.22BP = c(601.90	,621.14	,511.00,	874.71	,874.84)
+
+
+#extrapolate age models?
+corePost[[1]]$thicks
+
+
+
 
 for(c in 1:5){
   #plot age vs depth:
@@ -232,6 +240,10 @@ for(c in 1:5){
         geom_line(data = ageData,aes(x = year,y = pmax))+
         geom_ribbon(data = ageData,aes(x = year,ymax = pmax, ymin =pmin) ,
                     colour = "purple",fill = "purple",alpha = 0.2)
+      
+      if(c == 1){#save for later
+        age.depth.plot1 <- age.depth.plot
+      }
       #load("~/Dropbox/VarveModel/output4.Rdata")
       cores = origCores
     }
@@ -247,16 +259,64 @@ for(c in 1:5){
   func = function(x) approx(x,y=seq_len(length(x)), xout = depthSequence)$y
   ageModels[[c]]$ageEnsemble = apply(csMat.mm,2,func)+21
   ageModels[[c]]$depth = depthSequence
+  
+  if(c==1){#
+    #extrapolate
+    newDepths <- readr::read_csv(here("Eklutna","Input0106","depths_deep_turbidites_loc2.csv")) %>% 
+      mutate(depth = `depth (in cm)`*10)
+    nd <- seq(max(ageModels[[c]]$depth)+1,to=max(newDepths$depth))
+    mf <- function(x){Hmisc::approxExtrap(ageModels[[c]]$depth,x,nd)$y}
+    
+    mf2ind <- round(runif(1000)*(nrow(ageModels[[c]]$ageEnsemble)-length(nd)))
+mf2 <- function(x){
+  mf2ind <- round(runif(1)*(nrow(ageModels[[c]]$ageEnsemble)-(length(nd)+604)))+604
+  fake <- x[mf2ind:(mf2ind+length(nd)-1)]
+  fake <-  fake - x[mf2ind-1] + max(x,na.rm = T)
+  return(fake)
+}   
+
+mf3 <- function(x){
+  gx <- diff(na.omit(x))
+  
+  return(cumsum(sample(gx,size = length(nd),replace = T))+max(x,na.rm = T))
+}
+
+    newAges <- apply(ageModels[[c]]$ageEnsemble,MARGIN = 2,mf3)
+    ageModels[[c]]$ageEnsemble <- rbind(ageModels[[c]]$ageEnsemble,newAges)
+    ageModels[[c]]$depth <- c(ageModels[[c]]$depth,nd)
+    }
+  
+  
   ageModels[[c]]$ageMedian = apply(ageModels[[c]]$ageEnsemble,1,median,na.rm=T)
   ageModels[[c]]$IQR = apply(ageModels[[c]]$ageEnsemble,1,IQR,na.rm=T)
+  ageModels[[c]]$c975 = apply(ageModels[[c]]$ageEnsemble,1,quantile,na.rm=T,probs = 0.975)
+  ageModels[[c]]$c025 = apply(ageModels[[c]]$ageEnsemble,1,quantile,na.rm=T,probs = 0.025)
+  
   ageModels[[c]]$st.dev = apply(ageModels[[c]]$ageEnsemble,1,sd,na.rm=T)
   
   ageModelToExport = as.data.frame(cbind(ageModels[[c]]$depth,ageModels[[c]]$ageMedian,ageModels[[c]]$st.dev,ageModels[[c]]$IQR))
   
   names(ageModelToExport) = c("Depth (cm)","Median Age (yr BP {1950})","Age Standard Deviation","Age Inter-quartile Range")
   write.csv(ageModelToExport,file = paste0("~/Dropbox/VarveModel/AgeModelData-core",corenames[c],".csv"))
-  
+
+    #add extrapolated lines in
+  if(c == 1){
+    newDepth <- nd
+    ndi <- which(ageModels[[c]]$depth >= min(nd))
+    newMed <- ageModels[[c]]$ageMedian[ndi]
+    new975 <- ageModels[[c]]$c975[ndi]
+    new025 <- ageModels[[c]]$c025[ndi]
+    
+    age.depth.plot.extrap <- age.depth.plot1 + xlim(c(0,max(new975))) +
+      geom_line(aes(x = newMed,y = newDepth/1000),colour = "blue",linetype = 2) +
+      geom_line(aes(x = new975,y = newDepth/1000),colour = "blue",linetype = 3) +
+      geom_line(aes(x = new025,y = newDepth/1000),colour = "blue",linetype = 3)
+    ggsave(age.depth.plot.extrap,filename = here("ExtrapolatedAgeModel.pdf"))
+  }
 }
+
+
+
 
 # 
 # plot(mCs/1000,type="l",xlab="varve year", ylab="depth (m)")
