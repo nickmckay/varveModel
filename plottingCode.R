@@ -264,7 +264,7 @@ for(c in 1:5){
     #extrapolate
     newDepths <- readr::read_csv(here("Eklutna","Input0106","depths_deep_turbidites_loc2.csv")) %>% 
       mutate(depth = `depth (in cm)`*10)
-    nd <- seq(max(ageModels[[c]]$depth)+1,to=max(newDepths$depth))
+    nd <- seq(max(ageModels[[c]]$depth)+1,to=max(newDepths$depth)+1)
     mf <- function(x){Hmisc::approxExtrap(ageModels[[c]]$depth,x,nd)$y}
     
     mf2ind <- round(runif(1000)*(nrow(ageModels[[c]]$ageEnsemble)-length(nd)))
